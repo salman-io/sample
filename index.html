@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SmileTracker — Web</title>
-  <meta name="description" content="SmileTracker — detects smiles from your webcam and replaces faces with emojis." />
+  <meta name="description" content="SmileTracker — detects emotions from your webcam and replaces faces with suitable emojis." />
   <style>
     body{font-family:Arial,sans-serif;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}
-    canvas, video{border:2px solid #444;border-radius:8px;max-width:90%;height:auto;background:black}
+    canvas{border:2px solid #444;border-radius:8px;max-width:90%;height:auto;background:black}
     button{margin:5px;padding:10px 20px;border:none;border-radius:5px;cursor:pointer}
     #status{margin-top:10px;font-size:14px;color:#aaa}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
 </head>
 <body>
-  <h1>SmileTracker — Emoji Face</h1>
+  <h1>SmileTracker — Emoji by Emotion</h1>
   <canvas id="canvas"></canvas>
   <div>
     <button id="startBtn">Start Camera</button>
@@ -31,9 +31,21 @@
     let stream = null;
     let detectionInterval;
 
+    const emotionEmojis = {
+      happy: '😊',
+      sad: '😢',
+      angry: '😠',
+      surprised: '😮',
+      fearful: '😨',
+      disgusted: '🤢',
+      neutral: '😐'
+    };
+
     async function loadModels() {
-      statusEl.textContent = 'Loading face detection models…';
-      await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+      statusEl.textContent = 'Loading models…';
+      const modelURL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+      await faceapi.nets.tinyFaceDetector.loadFromUri(modelURL);
+      await faceapi.nets.faceExpressionNet.loadFromUri(modelURL);
       statusEl.textContent = 'Models loaded';
     }
 
@@ -70,15 +82,18 @@
       const ctx = canvas.getContext('2d');
       detectionInterval = setInterval(async () => {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
         detections.forEach(det => {
-          const { x, y, width, height } = det.box;
-          ctx.fillStyle = 'transparent';
+          const { x, y, width, height } = det.detection.box;
+          const expressions = det.expressions;
+          const mainExpression = Object.keys(expressions).reduce((a, b) => expressions[a] > expressions[b] ? a : b);
+          const emoji = emotionEmojis[mainExpression] || '🙂';
+
           ctx.clearRect(x, y, width, height);
           ctx.font = `${Math.floor(height)}px sans-serif`;
-          ctx.fillText('😊', x, y + height - 10);
+          ctx.fillText(emoji, x, y + height - 10);
         });
-      }, 100);
+      }, 150);
     }
 
     window.addEventListener('load', async () => {
