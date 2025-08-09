@@ -4,17 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SmileTracker — Web</title>
-  <meta name="description" content="SmileTracker — detects smiles from your webcam and logs smile events." />
+  <meta name="description" content="SmileTracker — detects smiles from your webcam and replaces faces with emojis." />
   <style>
     body{font-family:Arial,sans-serif;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}
-    video{border:2px solid #444;border-radius:8px;max-width:90%;height:auto;background:black}
+    canvas, video{border:2px solid #444;border-radius:8px;max-width:90%;height:auto;background:black}
     button{margin:5px;padding:10px 20px;border:none;border-radius:5px;cursor:pointer}
     #status{margin-top:10px;font-size:14px;color:#aaa}
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
 </head>
 <body>
-  <h1>SmileTracker — Web Debug</h1>
-  <video id="video" autoplay muted playsinline></video>
+  <h1>SmileTracker — Emoji Face</h1>
+  <canvas id="canvas"></canvas>
   <div>
     <button id="startBtn">Start Camera</button>
     <button id="stopBtn">Stop Camera</button>
@@ -22,27 +23,37 @@
   <div id="status">Status: idle</div>
 
   <script>
-    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
     const statusEl = document.getElementById('status');
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
+    let video;
     let stream = null;
+    let detectionInterval;
+
+    async function loadModels() {
+      statusEl.textContent = 'Loading face detection models…';
+      await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+      statusEl.textContent = 'Models loaded';
+    }
 
     async function startCamera(){
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        statusEl.textContent = 'Status: camera not supported in this browser';
+        statusEl.textContent = 'Camera not supported in this browser';
         return;
       }
       try {
-        statusEl.textContent = 'Status: requesting camera…';
+        video = document.createElement('video');
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = stream;
         await video.play();
-        statusEl.textContent = 'Status: running';
-        console.log('Camera started', stream);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        statusEl.textContent = 'Camera running';
+        startDetection();
       } catch (err) {
         console.error('getUserMedia error:', err);
-        statusEl.textContent = `Status: camera error: ${err.name} — ${err.message}`;
+        statusEl.textContent = `Camera error: ${err.name} — ${err.message}`;
       }
     }
 
@@ -50,13 +61,30 @@
       if (stream){
         stream.getTracks().forEach(t=>t.stop());
         stream = null;
-        statusEl.textContent = 'Status: stopped';
-        console.log('Camera stopped');
+        statusEl.textContent = 'Camera stopped';
+        clearInterval(detectionInterval);
       }
     }
 
-    // Auto-start camera when page loads
-    window.addEventListener('load', startCamera);
+    async function startDetection() {
+      const ctx = canvas.getContext('2d');
+      detectionInterval = setInterval(async () => {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+        detections.forEach(det => {
+          const { x, y, width, height } = det.box;
+          ctx.fillStyle = 'transparent';
+          ctx.clearRect(x, y, width, height);
+          ctx.font = `${Math.floor(height)}px sans-serif`;
+          ctx.fillText('😊', x, y + height - 10);
+        });
+      }, 100);
+    }
+
+    window.addEventListener('load', async () => {
+      await loadModels();
+      startCamera();
+    });
     startBtn.addEventListener('click', startCamera);
     stopBtn.addEventListener('click', stopCamera);
   </script>
