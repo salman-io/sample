@@ -7,7 +7,7 @@
   <meta name="description" content="SmileTracker — detects emotions from your webcam and replaces faces with suitable emojis." />
   <style>
     body{font-family:Arial,sans-serif;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}
-    canvas{border:2px solid #444;border-radius:8px;max-width:90%;height:auto;background:black}
+    canvas{border:2px solid #444;border-radius:8px;max-width:90%;height:auto}
     button{margin:5px;padding:10px 20px;border:none;border-radius:5px;cursor:pointer}
     #status{margin-top:10px;font-size:14px;color:#aaa}
   </style>
@@ -89,7 +89,13 @@
           const mainExpression = Object.keys(expressions).reduce((a, b) => expressions[a] > expressions[b] ? a : b);
           const emoji = emotionEmojis[mainExpression] || '🙂';
 
-          ctx.clearRect(x, y, width, height);
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x, y, width, height);
+          ctx.clip();
+          ctx.drawImage(video, x, y, width, height, x, y, width, height); // keep background from video
+          ctx.restore();
+
           ctx.font = `${Math.floor(height)}px sans-serif`;
           ctx.fillText(emoji, x, y + height - 10);
         });
